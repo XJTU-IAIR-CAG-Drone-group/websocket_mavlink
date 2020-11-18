@@ -11,6 +11,7 @@
 #include <websocketpp/common/thread.hpp>
 
 #include <common/mavlink.h>
+#include <chrono>
 typedef websocketpp::server<websocketpp::config::asio> server;
 
 using websocketpp::connection_hdl;
@@ -23,7 +24,8 @@ using websocketpp::lib::mutex;
 using websocketpp::lib::lock_guard;
 using websocketpp::lib::unique_lock;
 using websocketpp::lib::condition_variable;
-
+auto start = std::chrono::system_clock::now();
+auto end = std::chrono::system_clock::now();
 /* on_open insert connection_hdl into channel
  * on_close remove connection_hdl from channel
  * on_message queue send to all channels
@@ -48,6 +50,7 @@ struct action {
 class broadcast_server {
 public:
     broadcast_server() {
+        start = std::chrono::system_clock::now();
         // Initialize Asio Transport
         m_server.clear_access_channels(websocketpp::log::alevel::all);
         m_server.clear_error_channels(websocketpp::log::elevel::all);
@@ -59,6 +62,7 @@ public:
         m_server.set_open_handler(bind(&broadcast_server::on_open,this,::_1));
         m_server.set_close_handler(bind(&broadcast_server::on_close,this,::_1));
         m_server.set_message_handler(bind(&broadcast_server::on_message,this,::_1,::_2));
+
     }
 
     void run(uint16_t port) {
@@ -103,8 +107,35 @@ public:
         }
         m_action_cond.notify_one();
     }
+    void respondWithMavlinkMessage(connection_hdl hdl, const mavlink_message_t& msg)
+    {
+        uint8_t buffer[MAVLINK_MAX_PACKET_LEN];
+    
+        int len = mavlink_msg_to_send_buffer(buffer, &msg);
+        websocketpp::lib::error_code ec;
+//        c->send(hdl_, buffer, len, websocketpp::frame::opcode::binary, ec);
+        m_server.send(hdl, buffer, len, websocketpp::frame::opcode::binary, ec);
+        if (ec) {
+            std::cout << "Echo failed because: " << ec.message() << std::endl;
+        }
+    }
+    
+    int get_boot_time(){
+        auto end = std::chrono::system_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+        return duration.count();
+    }
     void heart_messages(){
         mavlink_message_t msg;
+        uint8_t _vehicleSystemId = '1' - '0';
+        uint8_t _vehicleComponentId = '1' - '0';
+        uint8_t _mavlinkChannel = '0' - '0';
+        int count = 0;
+        float roll = 0.0, pitch = 0.0, yaw = 0.0;
+        float roll_speed = 0.08, pitch_speed = 0.08, yaw_speed = 0.08;
+        float local_ned_x = 0, local_ned_y = 0, local_ned_z = 0;
+        float ned_vx = 0, ned_vy = 0, ned_vz = 0;
+        
         while(1){
             if(m_connections.empty()){
                 continue;
@@ -126,6 +157,64 @@ public:
                     if (ec) {
                         std::cout << "Echo failed because: " << ec.message() << std::endl;
                     }
+                    respondWithMavlinkMessage(*it, msg);
+    #ifdef dronestate_sim_send        
+                    //-------------home position---------------//
+                    float bogus[4];
+                    bogus[0] = 0.0f;
+                    bogus[1] = 0.0f;
+                    bogus[2] = 0.0f;
+                    bogus[3] = 0.0f;
+                    double _vehicleLatitude = 107.40;
+                    double _vehicleLongitude = 33.42;
+                    double _vehicleAltitude = 1.5;
+                    mavlink_msg_home_position_pack_chan(
+                            _vehicleSystemId,
+                            _vehicleComponentId,
+                            _mavlinkChannel,
+                            &msg,
+                            (int32_t)(_vehicleLatitude * 1E7),
+                            (int32_t)(_vehicleLongitude * 1E7),
+                            (int32_t)(_vehicleAltitude * 1000),
+                            0.0f, 0.0f, 0.0f,
+                            &bogus[0],
+                            0.0f, 0.0f, 0.0f,
+                            0);
+                    respondWithMavlinkMessage(*it, msg);
+                    //-------------SysStatus---------------//
+                    int8_t _batteryRemaining = static_cast<int8_t>(100 - 50);
+                    mavlink_msg_sys_status_pack_chan(
+                            _vehicleSystemId,
+                            _vehicleComponentId,
+                            static_cast<uint8_t>(_mavlinkChannel),
+                            &msg,
+                            0,          // onboard_control_sensors_present
+                            0,          // onboard_control_sensors_enabled
+                            0,          // onboard_control_sensors_health
+                            250,        // load
+                            4200 * 4,   // voltage_battery
+                            8000,       // current_battery
+                            _batteryRemaining, // battery_remaining
+                            0,0,0,0,0,0);
+                    respondWithMavlinkMessage(*it, msg);
+                    roll = 0.174 + (0.01 * count), pitch = 0.174 * count, yaw = 0.174 * count;
+                    roll_speed = 0.08 + (0.01 * count);
+                    pitch_speed = 0.08 + (0.01 * count);
+                    yaw_speed = 0.08 + (0.01 * count);
+                    mavlink_msg_attitude_pack_chan(_vehicleSystemId, _vehicleComponentId, _mavlinkChannel, &msg,
+                                                   get_boot_time(), roll, pitch, yaw, roll_speed, pitch_speed, yaw_speed);
+                    respondWithMavlinkMessage(*it, msg);
+                    local_ned_x = 0.0 + (0.01 * count), local_ned_y = 0.0 * count, local_ned_z = -0.0 * count;
+                    ned_vx = 0.0 + (0.01 * count);
+                    ned_vy = 0.0 + (0.01 * count);
+                    ned_vz = 0.0 + (-0.01 * count);
+                    mavlink_msg_local_position_ned_pack_chan(_vehicleSystemId, _vehicleComponentId, _mavlinkChannel,
+                                                             &msg, get_boot_time(), local_ned_x, local_ned_y,local_ned_z,
+                                                             ned_vx, ned_vy, ned_vz);
+                    sleep(1);
+                    count ++ ;
+                    if(count > 100){ count = 0;}
+     #endif       
                 }
                 lock.unlock();
                 sleep(1);
@@ -188,6 +277,7 @@ private:
     mutex m_action_lock;
     mutex m_connection_lock;
     condition_variable m_action_cond;
+
 };
 
 int main() {

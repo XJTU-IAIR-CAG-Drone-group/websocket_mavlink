@@ -18,5 +18,5 @@ make
 ### 3. launch client    
 **NOTE ！** *change ip to your own machine ip(running websocket_server in step 2)*
 ```
-./websocket_client ws://ip:9002
+./websocket_client ws://your_own_server_ip:9002
 ```

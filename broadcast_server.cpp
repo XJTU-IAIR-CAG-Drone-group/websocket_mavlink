@@ -25,7 +25,7 @@ using websocketpp::lib::lock_guard;
 using websocketpp::lib::unique_lock;
 using websocketpp::lib::condition_variable;
 auto start = std::chrono::system_clock::now();
-auto end = std::chrono::system_clock::now();
+//auto end = std::chrono::system_clock::now();
 /* on_open insert connection_hdl into channel
  * on_close remove connection_hdl from channel
  * on_message queue send to all channels
@@ -113,7 +113,6 @@ public:
     
         int len = mavlink_msg_to_send_buffer(buffer, &msg);
         websocketpp::lib::error_code ec;
-//        c->send(hdl_, buffer, len, websocketpp::frame::opcode::binary, ec);
         m_server.send(hdl, buffer, len, websocketpp::frame::opcode::binary, ec);
         if (ec) {
             std::cout << "Echo failed because: " << ec.message() << std::endl;
@@ -125,16 +124,70 @@ public:
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
         return duration.count();
     }
+    void get_mavlink_home_position(mavlink_message_t &msg){
+        float bogus[4];
+        bogus[0] = 0.0f;
+        bogus[1] = 0.0f;
+        bogus[2] = 0.0f;
+        bogus[3] = 0.0f;
+        double _vehicleLatitude = 107.40;
+        double _vehicleLongitude = 33.42;
+        double _vehicleAltitude = 1.5;
+        mavlink_msg_home_position_pack_chan(
+                _vehicleSystemId,
+                _vehicleComponentId,
+                _mavlinkChannel,
+                &msg,
+                (int32_t)(_vehicleLatitude * 1E7),
+                (int32_t)(_vehicleLongitude * 1E7),
+                (int32_t)(_vehicleAltitude * 1000),
+                0.0f, 0.0f, 0.0f,
+                &bogus[0],
+                0.0f, 0.0f, 0.0f,
+                0);
+    }
+    void get_mavlink_sys_status(mavlink_message_t &msg){
+        int8_t _batteryRemaining = static_cast<int8_t>(100 - 50);
+        mavlink_msg_sys_status_pack_chan(
+                _vehicleSystemId,
+                _vehicleComponentId,
+                static_cast<uint8_t>(_mavlinkChannel),
+                &msg,
+                0,          // onboard_control_sensors_present
+                0,          // onboard_control_sensors_enabled
+                0,          // onboard_control_sensors_health
+                250,        // load
+                4200 * 4,   // voltage_battery
+                8000,       // current_battery
+                _batteryRemaining, // battery_remaining
+                0,0,0,0,0,0);
+    }
+    void get_mavlink_attitude(mavlink_message_t &msg){
+        roll = 0.174 + (0.01 * count), pitch = 0.174 * count, yaw = 0.174 * count;
+        roll_speed = 0.08 + (0.01 * count);
+        pitch_speed = 0.08 + (0.01 * count);
+        yaw_speed = 0.08 + (0.01 * count);
+        mavlink_msg_attitude_pack_chan(_vehicleSystemId, _vehicleComponentId, _mavlinkChannel, &msg,
+                                       get_boot_time(), roll, pitch, yaw, roll_speed, pitch_speed, yaw_speed);
+    }
+    void get_mavlink_local_position_ned(mavlink_message_t &msg){
+        local_ned_x = 0.0 + (0.01 * count), local_ned_y = 0.0 * count, local_ned_z = -0.0 * count;
+        ned_vx = 0.0 + (0.01 * count);
+        ned_vy = 0.0 + (0.01 * count);
+        ned_vz = 0.0 + (-0.01 * count);
+        
+        mavlink_msg_local_position_ned_pack_chan(_vehicleSystemId, _vehicleComponentId, _mavlinkChannel,
+                                                 &msg, get_boot_time(), local_ned_x, local_ned_y,local_ned_z,
+                                                 ned_vx, ned_vy, ned_vz);
+    }
+    void get_mavlink_heartbeat(mavlink_message_t &msg){
+        mavlink_msg_heartbeat_pack(1, 1, &msg, MAV_TYPE_GENERIC, MAV_AUTOPILOT_INVALID, 0, 0, MAV_STATE_STANDBY);
+        uint8_t buf[512];
+        uint16_t len;
+        len = mavlink_msg_to_send_buffer(buf, &msg);
+    }
     void heart_messages(){
         mavlink_message_t msg;
-        uint8_t _vehicleSystemId = '1' - '0';
-        uint8_t _vehicleComponentId = '1' - '0';
-        uint8_t _mavlinkChannel = '0' - '0';
-        int count = 0;
-        float roll = 0.0, pitch = 0.0, yaw = 0.0;
-        float roll_speed = 0.08, pitch_speed = 0.08, yaw_speed = 0.08;
-        float local_ned_x = 0, local_ned_y = 0, local_ned_z = 0;
-        float ned_vx = 0, ned_vy = 0, ned_vz = 0;
         
         while(1){
             if(m_connections.empty()){
@@ -146,78 +199,29 @@ public:
                           << "--------------]:"<< std::endl;              
                 con_list::iterator it;
                 for (it = m_connections.begin(); it != m_connections.end(); ++it) {
-                    //m_server.send(*it,a.msg);
                     //mavlink heartbeat
-                    mavlink_msg_heartbeat_pack(1, 1, &msg, MAV_TYPE_GENERIC, MAV_AUTOPILOT_INVALID, 0, 0, MAV_STATE_STANDBY);
-                    uint8_t buf[512];
-                    uint16_t len;
-                    len = mavlink_msg_to_send_buffer(buf, &msg);
-                    websocketpp::lib::error_code ec;
-                    m_server.send(*it, buf, len, websocketpp::frame::opcode::binary, ec);
-                    if (ec) {
-                        std::cout << "Echo failed because: " << ec.message() << std::endl;
-                    }
+                    get_mavlink_heartbeat(msg);
                     respondWithMavlinkMessage(*it, msg);
     #ifdef dronestate_sim_send        
                     //-------------home position---------------//
-                    float bogus[4];
-                    bogus[0] = 0.0f;
-                    bogus[1] = 0.0f;
-                    bogus[2] = 0.0f;
-                    bogus[3] = 0.0f;
-                    double _vehicleLatitude = 107.40;
-                    double _vehicleLongitude = 33.42;
-                    double _vehicleAltitude = 1.5;
-                    mavlink_msg_home_position_pack_chan(
-                            _vehicleSystemId,
-                            _vehicleComponentId,
-                            _mavlinkChannel,
-                            &msg,
-                            (int32_t)(_vehicleLatitude * 1E7),
-                            (int32_t)(_vehicleLongitude * 1E7),
-                            (int32_t)(_vehicleAltitude * 1000),
-                            0.0f, 0.0f, 0.0f,
-                            &bogus[0],
-                            0.0f, 0.0f, 0.0f,
-                            0);
+                    get_mavlink_home_position(msg);
                     respondWithMavlinkMessage(*it, msg);
                     //-------------SysStatus---------------//
-                    int8_t _batteryRemaining = static_cast<int8_t>(100 - 50);
-                    mavlink_msg_sys_status_pack_chan(
-                            _vehicleSystemId,
-                            _vehicleComponentId,
-                            static_cast<uint8_t>(_mavlinkChannel),
-                            &msg,
-                            0,          // onboard_control_sensors_present
-                            0,          // onboard_control_sensors_enabled
-                            0,          // onboard_control_sensors_health
-                            250,        // load
-                            4200 * 4,   // voltage_battery
-                            8000,       // current_battery
-                            _batteryRemaining, // battery_remaining
-                            0,0,0,0,0,0);
+                    get_mavlink_sys_status(msg);
                     respondWithMavlinkMessage(*it, msg);
-                    roll = 0.174 + (0.01 * count), pitch = 0.174 * count, yaw = 0.174 * count;
-                    roll_speed = 0.08 + (0.01 * count);
-                    pitch_speed = 0.08 + (0.01 * count);
-                    yaw_speed = 0.08 + (0.01 * count);
-                    mavlink_msg_attitude_pack_chan(_vehicleSystemId, _vehicleComponentId, _mavlinkChannel, &msg,
-                                                   get_boot_time(), roll, pitch, yaw, roll_speed, pitch_speed, yaw_speed);
+                    //-------------attitude---------------//
+                    get_mavlink_attitude(msg);
                     respondWithMavlinkMessage(*it, msg);
-                    local_ned_x = 0.0 + (0.01 * count), local_ned_y = 0.0 * count, local_ned_z = -0.0 * count;
-                    ned_vx = 0.0 + (0.01 * count);
-                    ned_vy = 0.0 + (0.01 * count);
-                    ned_vz = 0.0 + (-0.01 * count);
-                    mavlink_msg_local_position_ned_pack_chan(_vehicleSystemId, _vehicleComponentId, _mavlinkChannel,
-                                                             &msg, get_boot_time(), local_ned_x, local_ned_y,local_ned_z,
-                                                             ned_vx, ned_vy, ned_vz);
+                    //-------------local_position_ned---------------//
+                    get_mavlink_local_position_ned(msg);
+                    respondWithMavlinkMessage(*it, msg);
                     sleep(1);
                     count ++ ;
                     if(count > 100){ count = 0;}
      #endif       
                 }
                 lock.unlock();
-                sleep(1);
+//                sleep(1);
             }
         }
     }
@@ -277,7 +281,15 @@ private:
     mutex m_action_lock;
     mutex m_connection_lock;
     condition_variable m_action_cond;
-
+    uint8_t _vehicleSystemId = '1' - '0';
+    uint8_t _vehicleComponentId = '1' - '0';
+    uint8_t _mavlinkChannel = '0' - '0';
+public:
+    int count = 0;
+    float roll = 0.0, pitch = 0.0, yaw = 0.0;
+    float roll_speed = 0.08, pitch_speed = 0.08, yaw_speed = 0.08;
+    float local_ned_x = 0, local_ned_y = 0, local_ned_z = 0;
+    float ned_vx = 0, ned_vy = 0, ned_vz = 0;
 };
 
 int main() {

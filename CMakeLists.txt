@@ -4,7 +4,7 @@ project (websocket_client)                     #工程名称
 #option (ENABLE_CPP11 "Build websocketpp with CPP11 features enabled." TRUE)
 set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -pthread" )
 option(ASIO_STANDALONE "Set to use boost" ON)
-
+option(dronestate_sim_send "Set to send mavlink msg from server" ON)
 find_package (Boost 1.39.0 COMPONENTS system thread)
 if (Boost_FOUND)
 # Boost is a project wide global dependency.

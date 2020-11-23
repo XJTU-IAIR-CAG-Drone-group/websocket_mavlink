@@ -8,7 +8,8 @@ ubuntu16.04, boost 1.58.0, cmake 3.5.1
 ```   
 mkdir build
 cd build
-cmake ..
+### use Dmavlink_v2 and Dmavlink_v1 to control mavlink version
+cmake -Dmavlink_v2=ON -Dmavlink_v1=OFF ..
 make
 ```   
 ### 2. launch server on localhost:9002

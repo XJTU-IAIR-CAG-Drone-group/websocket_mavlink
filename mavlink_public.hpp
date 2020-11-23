@@ -11,13 +11,12 @@ bool decode_mavlink_message(mavlink_message_t &msg)
              mavlink_heartbeat_t heartbeat;
              mavlink_msg_heartbeat_decode(&msg, &heartbeat);
              std::cout << "heartbeat" << std::endl;
-        
              // access message specific fields
-//              std::cout << "    type:            "            << (uint)heartbeat.type << std::endl;
+              std::cout << "    type:            "            << (uint)heartbeat.type << std::endl;
 //              std::cout << "    autopilot:       "       << (uint)heartbeat.autopilot << std::endl;
 //              std::cout << "    base_mode:       "       << (uint)heartbeat.base_mode << std::endl;
 //              std::cout << "    custom_mode:     "     << (uint)heartbeat.custom_mode << std::endl;
-//              std::cout << "    system_status:   "   << (uint)heartbeat.system_status << std::endl;
+              std::cout << "    system_status:   "   << (uint)heartbeat.system_status << std::endl;
 //              std::cout << "    mavlink_version: " << (uint)heartbeat.mavlink_version << std::endl;
              break;
          }
@@ -112,20 +111,11 @@ bool decode_mavlink_message(mavlink_message_t &msg)
         case MAVLINK_MSG_ID_AUTOPILOT_VERSION:
             std::cout << "AUTOPILOT_VERSION" << std::endl;
             break;
-        case MAVLINK_MSG_ID_PROTOCOL_VERSION:
-            std::cout << "PROTOCOL_VERSION" << std::endl;
-            break;
         case MAVLINK_MSG_ID_WIND_COV:
             std::cout << "WIND_COV" << std::endl;
             break;
         case MAVLINK_MSG_ID_HIL_ACTUATOR_CONTROLS:
             std::cout << "ACTUATOR_CONTROLS" << std::endl;
-            break;
-        case MAVLINK_MSG_ID_LOGGING_DATA:
-            std::cout << "LOGGING_DATA" << std::endl;
-            break;
-        case MAVLINK_MSG_ID_LOGGING_DATA_ACKED:
-            std::cout << "LOGGING_DATA_ACKED" << std::endl;
             break;
         case MAVLINK_MSG_ID_GPS_RAW_INT:
             std::cout << "GPS_RAW_INT" << std::endl;
@@ -144,10 +134,7 @@ bool decode_mavlink_message(mavlink_message_t &msg)
             break;
         case MAVLINK_MSG_ID_SCALED_PRESSURE2:
             std::cout << "CALED_PRESSURE2" << std::endl;
-            break;
-        case MAVLINK_MSG_ID_CAMERA_IMAGE_CAPTURED:
-            std::cout << "CAMERA_IMAGE_CAPTURED" << std::endl;
-            break;
+            break;    
         case MAVLINK_MSG_ID_ATTITUDE:
             std::cout << "ATTITUDE" << std::endl;
             break;
@@ -160,6 +147,10 @@ bool decode_mavlink_message(mavlink_message_t &msg)
         case MAVLINK_MSG_ID_ESTIMATOR_STATUS:
             std::cout << "ESTIMATOR_STATUS" << std::endl;
             break;
+#ifdef mavlink_v2
+        case MAVLINK_MSG_ID_PROTOCOL_VERSION:
+            std::cout << "PROTOCOL_VERSION" << std::endl;
+            break;
         
         case MAVLINK_MSG_ID_MOUNT_ORIENTATION:
             std::cout << "MOUNT_ORIENTATION" << std::endl;
@@ -167,6 +158,16 @@ bool decode_mavlink_message(mavlink_message_t &msg)
         case MAVLINK_MSG_ID_OBSTACLE_DISTANCE:
             std::cout << "OBSTACLE_DISTANCE" << std::endl;
             break;
+        case MAVLINK_MSG_ID_CAMERA_IMAGE_CAPTURED:
+            std::cout << "CAMERA_IMAGE_CAPTURED" << std::endl;
+            break;
+        case MAVLINK_MSG_ID_LOGGING_DATA:
+            std::cout << "LOGGING_DATA" << std::endl;
+            break;
+        case MAVLINK_MSG_ID_LOGGING_DATA_ACKED:
+            std::cout << "LOGGING_DATA_ACKED" << std::endl;
+            break;
+#endif            
         default:
         {
             // std::cout << "Unsupported packet -> ";

@@ -107,8 +107,7 @@ public:
         }
         m_action_cond.notify_one();
     }
-    void respondWithMavlinkMessage(connection_hdl hdl, const mavlink_message_t& msg)
-    {
+    void respondWithMavlinkMessage(connection_hdl hdl, const mavlink_message_t& msg){
         uint8_t buffer[MAVLINK_MAX_PACKET_LEN];
     
         int len = mavlink_msg_to_send_buffer(buffer, &msg);
@@ -133,6 +132,20 @@ public:
         double _vehicleLatitude = 107.40;
         double _vehicleLongitude = 33.42;
         double _vehicleAltitude = 1.5;
+        
+#ifdef mavlink_v1
+        mavlink_msg_home_position_pack_chan(
+                _vehicleSystemId,
+                _vehicleComponentId,
+                _mavlinkChannel,
+                &msg,
+                (int32_t)(_vehicleLatitude * 1E7),
+                (int32_t)(_vehicleLongitude * 1E7),
+                (int32_t)(_vehicleAltitude * 1000),
+                0.0f, 0.0f, 0.0f,
+                &bogus[0],
+                0.0f, 0.0f, 0.0f);
+#elif mavlink_v2
         mavlink_msg_home_position_pack_chan(
                 _vehicleSystemId,
                 _vehicleComponentId,
@@ -145,7 +158,10 @@ public:
                 &bogus[0],
                 0.0f, 0.0f, 0.0f,
                 0);
+#endif
     }
+
+        
     void get_mavlink_sys_status(mavlink_message_t &msg){
         int8_t _batteryRemaining = static_cast<int8_t>(100 - 50);
         mavlink_msg_sys_status_pack_chan(
@@ -182,7 +198,7 @@ public:
     }
     void get_mavlink_heartbeat(mavlink_message_t &msg){
         mavlink_msg_heartbeat_pack(1, 1, &msg, MAV_TYPE_GENERIC, MAV_AUTOPILOT_INVALID, 0, 0, MAV_STATE_STANDBY);
-        uint8_t buf[512];
+        uint8_t buf[MAVLINK_MAX_PACKET_LEN];
         uint16_t len;
         len = mavlink_msg_to_send_buffer(buf, &msg);
     }
@@ -199,7 +215,7 @@ public:
                           << "--------------]:"<< std::endl;              
                 con_list::iterator it;
                 for (it = m_connections.begin(); it != m_connections.end(); ++it) {
-                    //mavlink heartbeat
+                    //-------------mavlink heartbeat---------------//
                     get_mavlink_heartbeat(msg);
                     respondWithMavlinkMessage(*it, msg);
     #ifdef dronestate_sim_send        
@@ -240,17 +256,14 @@ public:
             lock.unlock();
 
             if (a.type == SUBSCRIBE) {
-//                lock_guard<mutex> guard(m_connection_lock);
                 unique_lock<mutex> connection_lock(m_connection_lock);
                 m_connections.insert(a.hdl);
                 connection_lock.unlock();
             } else if (a.type == UNSUBSCRIBE) {
-//                lock_guard<mutex> guard(m_connection_lock);
                 unique_lock<mutex> connection_lock(m_connection_lock);
                 m_connections.erase(a.hdl);
                 connection_lock.unlock();
             } else if (a.type == MESSAGE) {
-//                lock_guard<mutex> guard(m_connection_lock);
                 unique_lock<mutex> connection_lock(m_connection_lock);
 //                    m_server.send(*it,a.msg);
 //                m_server.send(a.hdl, buf, len, websocketpp::frame::opcode::binary);

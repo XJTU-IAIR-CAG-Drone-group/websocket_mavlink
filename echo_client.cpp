@@ -67,9 +67,16 @@ void trim(std::string &s)
  }
 int get_mavmsg(std::string recvstr, mavlink_message_t &mav_msg)
 {
+#ifdef mavlink_v2
     if(recvstr[0] != 'F'  || recvstr[1] != 'D' || recvstr.size() < 5){
         return -1;
-    }else{
+    }
+#elif  mavlink_v1 
+    if(recvstr[0] != 'F'  || recvstr[1] != 'E' || recvstr.size() < 5){
+        return -1;
+    }
+#endif
+    else{
 //        std::cout <<"[mavlink to string:]"<< recvstr << std::endl;
         if(recvstr.size() < 10) return 0;
     //    std::cout <<"before trim:"<< recvstr << " length " << recvstr.size()<< std::endl; 
@@ -173,6 +180,7 @@ void heart_messages(client* c){
         double _vehicleLatitude = 107.40;
         double _vehicleLongitude = 33.42;
         double _vehicleAltitude = 1.5;
+#ifdef mavlink_v2
         mavlink_msg_home_position_pack_chan(
                 _vehicleSystemId,
                 _vehicleComponentId,
@@ -185,6 +193,19 @@ void heart_messages(client* c){
                 &bogus[0],
                 0.0f, 0.0f, 0.0f,
                 0);
+#elif mavlink_v1
+        mavlink_msg_home_position_pack_chan(
+                _vehicleSystemId,
+                _vehicleComponentId,
+                _mavlinkChannel,
+                &msg,
+                (int32_t)(_vehicleLatitude * 1E7),
+                (int32_t)(_vehicleLongitude * 1E7),
+                (int32_t)(_vehicleAltitude * 1000),
+                0.0f, 0.0f, 0.0f,
+                &bogus[0],
+                0.0f, 0.0f, 0.0f);
+#endif
         respondWithMavlinkMessage(c, msg);
         //-------------SysStatus---------------//
         int8_t _batteryRemaining = static_cast<int8_t>(100 - 50);
@@ -243,7 +264,7 @@ int main(int argc, char* argv[]) {
 
         // Register our message handler
         c.set_message_handler(bind(&on_message, &c, ::_1, ::_2));
-        thread mav_msg_send(bind(heart_messages,&c));
+
 //        c.set_message_handler(bind(&heart_messages, &c, ::_1,::_2));
         websocketpp::lib::error_code ec;
         client::connection_ptr con = c.get_connection(uri, ec);
@@ -259,7 +280,7 @@ int main(int argc, char* argv[]) {
         // this will cause a single connection to be made to the server. c.run()
         // will exit when this connection is closed.
         c.run();
-
+        thread mav_msg_send(bind(heart_messages,&c));
         mav_msg_send.join();
     } catch (websocketpp::exception const & e) {
         std::cout << e.what() << std::endl;

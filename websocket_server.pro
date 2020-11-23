@@ -16,12 +16,23 @@ HEADERS += \
 $$SOURCE_DIR/include/*.hpp \
     echo_handler.hpp
 
-## amvlink
-INCLUDEPATH += \
-$$PWD/mavlink_headers
-HEADERS += \
-	$$PWD/mavlink-headers/*.hpp
-
+## mavlink
+## select mavlink version
+DEFINES += mavlink_v1
+contains(DEFINES, mavlink_v1){
+	INCLUDEPATH += \
+	$$PWD/mavlink_headers/c_library_v1
+	HEADERS += \
+		$$PWD/mavlink_headers/c_library_v1/*.hpp
+	message("mavlink_v1 version used")
+}else{
+    
+	INCLUDEPATH += \
+	$$PWD/mavlink_headers/c_library_v2
+	HEADERS += \
+		$$PWD/mavlink_headers/c_library_v2/*.hpp
+	message("mavlink_v2 version used")
+}
 DEFINES += ASIO_STANDALONE
 ## send drone state sim data
 DEFINES += dronestate_sim_send
